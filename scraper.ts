@@ -254,7 +254,7 @@ function findTextBounds(elements: Element[], text: string) {
     // Examine all the elements on the page that being with the same character as the requested
     // text.
     
-    let condensedText = text.replace(/[\s,\-_:]/g, "").toLowerCase();
+    let condensedText = text.replace(/[\s,\-_]/g, "").toLowerCase();
     let firstCharacter = condensedText.charAt(0);
 
     let matches = [];
@@ -269,7 +269,7 @@ function findTextBounds(elements: Element[], text: string) {
         do {
             rightElements.push(rightElement);
 
-            let currentText = rightElements.map(element => element.text).join("").replace(/[\s,\-_:]/g, "").toLowerCase();
+            let currentText = rightElements.map(element => element.text).join("").replace(/[\s,\-_]/g, "").toLowerCase();
 
             if (currentText.length > condensedText.length + 2)  // stop once the text is too long
                 break;
@@ -314,10 +314,10 @@ function findTextBounds(elements: Element[], text: string) {
 
 // Finds the start element of each development application on the current PDF page (there are
 // typically two development applications on a single page and each development application
-// typically begins with the text "Application No").
+// typically begins with the text "APPLICATION NO:").
 
 function findStartElements(elements: Element[]) {
-    const FindText = "ApplicationNo";
+    const FindText = "APPLICATIONNO:";
     
     // Examine all the elements on the page that begin with the same letter as the FindText.
 
@@ -334,10 +334,10 @@ function findStartElements(elements: Element[]) {
         do {
             rightElements.push(rightElement);
         
-            // Allow for common miscellaneous characters such as " ", ".", "-" and ":".
+            // Allow for common miscellaneous characters such as " ", "." and "-".
 
-            let text = rightElements.map(element => element.text).join("").replace(/[\s,\-_:]/g, "").toLowerCase();
-            if (text.length >= FindText.length + 2)  // stop once the text is too long
+            let text = rightElements.map(element => element.text).join("").replace(/[\s,\-_]/g, "").toLowerCase();
+            if (text.length > FindText.length + 2)  // stop once the text is too long
                 break;
             if (text.length >= FindText.length - 2) {  // ignore until the text is close to long enough
                 if (text === FindText.toLowerCase())
@@ -372,33 +372,16 @@ function findStartElements(elements: Element[]) {
 // Parses the details from the elements associated with a single development application.
 
 function parseApplicationElements(elements: Element[], cells: Cell[], informationUrl: string) {
-    let applicationNumberHeadingBounds = findTextBounds(elements, "APPLICATION NO");
-    
-    // Is incorrectly recognising the underline under "APPLICATION NO" as a cell line (and
-    // constructing cells that are too small) ...
-    
+    let applicationNumberHeadingBounds = findTextBounds(elements, "APPLICATION NO:");
     let descriptionHeadingCell = cells.find(cell => cell.elements.map(element => element.text).join("").replace(/\s/g, "").toUpperCase() === "DESCRIPTION:");
-
-    // let applicantHeadingBounds = findTextBounds(elements, "APPLICANT");
-    // let applicantsAddressHeadingBounds = findTextBounds(elements, "APPLICANT'S ADDRESS");
-    // let descriptionHeadingBounds = findTextBounds(elements, "DESCRIPTION");
-    // let decisionAndDateHeadingBounds = findTextBounds(elements, "DECISION & DATE");
-    // let commencementHeadingBounds = findTextBounds(elements, "COMMENCEMENT");
-    // let appealDecisionHeadingBounds = findTextBounds(elements, "APPEAL DECISION");
-    // let dateLodgedHeadingBounds = findTextBounds(elements, "DATE LODGED");
-
-    // Rely on the fact that each piece of heading text is vertically centred in its cell.  This
-    // can then be used to derive the location of the cell boundaries (rather than using the more
-    // complicated approach of trying to find verical and horizontal lines in the PDF).
-    //
-    // underdetermined ... need first/last/one y co-ordinate of a line to make this work ..
-    // better use the complicated approach.  Use Flinders Ranges ...
+    let dateLodgedHeadingCell = cells.find(cell => cell.elements.map(element => element.text).join("").replace(/\s/g, "").toUpperCase() === "DATELODGED:");
+    let developmentAddressHeadingCell = cells.find(cell => cell.elements.map(element => element.text).join("").replace(/\s/g, "").toUpperCase() === "DEVELOPMENTADDRESS:");
 
     // Get the application number.
 
     if (applicationNumberHeadingBounds === undefined) {
         let elementSummary = elements.map(element => `[${element.text}]`).join("");
-        console.log(`Could not find the "Application No" heading on the PDF page for the current development application.  The development application will be ignored.  Elements: ${elementSummary}`);
+        console.log(`Could not find the "APPLICATION NO:" heading on the PDF page for the current development application.  The development application will be ignored.  Elements: ${elementSummary}`);
         return undefined;
     }
     let applicationNumberBounds = {
@@ -407,91 +390,58 @@ function parseApplicationElements(elements: Element[], cells: Cell[], informatio
         width: Number.MAX_VALUE,
         height: applicationNumberHeadingBounds.height
     };
-    let applicationNumber = elements.filter(element => getPercentageOfElementInRectangle(element, applicationNumberBounds) > 10).map(element => element.text).join(" ").trim().replace(/\s\s+/g, " ");
+    let applicationNumber = elements.filter(element => getPercentageOfElementInRectangle(element, applicationNumberBounds) > 10).map(element => element.text).join("").replace(/\s/g, "").replace(/^:/, "");
     if (applicationNumber === undefined || applicationNumber === "") {
         let elementSummary = elements.map(element => `[${element.text}]`).join("");
         console.log(`Could not find the application number on the PDF page for the current development application.  The development application will be ignored.  Elements: ${elementSummary}`);
         return undefined;
     }
-    applicationNumber = applicationNumber.trim().replace(/\s/g, "").trim();
     console.log(`    Found \"${applicationNumber}\".`);
 
-    // Get the received date.
-    //
-    // let receivedDate: moment.Moment = undefined;
-    // if (lodgedDateHeadingBounds !== undefined) {
-    //     let receivedDateBounds = {
-    //         x: lodgedDateHeadingBounds.x + lodgedDateHeadingBounds.width,
-    //         y: lodgedDateHeadingBounds.y,
-    //         width: (approvalDateHeadingBounds === undefined) ? 2 * lodgedDateHeadingBounds.width : (approvalDateHeadingBounds.x - lodgedDateHeadingBounds.x - lodgedDateHeadingBounds.width),
-    //         height: lodgedDateHeadingBounds.height
-    //     };
-    //     let receivedDateText = elements.filter(element => getPercentageOfElementInRectangle(element, receivedDateBounds) > 10).map(element => element.text).join("").trim().replace(/\s\s+/g, " ");
-    //     if (receivedDateText !== undefined)
-    //         receivedDate = moment(receivedDateText.trim().substring(0, 10), "D/MM/YYYY", true);
-    // }
-
     // Get the description.
-    //
-    // let description = "";
-    // if (descriptionHeadingBounds !== undefined) {
-    //     let descriptionBounds = {
-    //         x: descriptionHeadingBounds.x + descriptionHeadingBounds.width,
-    //         y: descriptionHeadingBounds.y,
-    //         width: Number.MAX_VALUE,
-    //         height: descriptionHeadingBounds.height
-    //     };
-    //     description = elements.filter(element => getPercentageOfElementInRectangle(element, descriptionBounds) > 10).map(element => element.text).join("").trim().replace(/\s\s+/g, " ");
-    // }
+    
+    let description = "";
+    if (descriptionHeadingCell !== undefined) {
+        let descriptionCell = cells.find(cell => (descriptionHeadingCell.x + descriptionHeadingCell.width - cell.x) ** 2 + (descriptionHeadingCell.y - cell.y) ** 2 < Tolerance ** 2);
+        description = descriptionCell.elements.map(element => element.text).join("").trim().replace(/\s\s+/g, " ");
+    }
+
+    // Get the received date.
+    
+    let receivedDate: moment.Moment = moment.invalid();
+    if (dateLodgedHeadingCell !== undefined) {
+        let receivedDateCell = cells.find(cell => (dateLodgedHeadingCell.x + dateLodgedHeadingCell.width - cell.x) ** 2 + (dateLodgedHeadingCell.y - cell.y) ** 2 < Tolerance ** 2);
+        let receivedDateText = receivedDateCell.elements.map(element => element.text).join("").replace(/\s/g, "");
+        receivedDate = moment(receivedDateText, [ "D/M/YYYY", "D/M/YY" ], true);
+    }
 
     // Get the address.
-    //
-    // if (propertyAddressHeadingBounds === undefined) {
-    //     let elementSummary = elements.map(element => `[${element.text}]`).join("");
-    //     console.log(`Could not find the "Property Address" heading on the PDF page for the current development application.  The development application will be ignored.  Elements: ${elementSummary}`);
-    //     return undefined;
-    // }
-    // let addressBounds = {
-    //     x: propertyAddressHeadingBounds.x + propertyAddressHeadingBounds.width,
-    //     y: propertyAddressHeadingBounds.y,
-    //     width: Number.MAX_VALUE,
-    //     height: (legalDescriptionHeadingBounds === undefined) ? Number.MAX_VALUE : (legalDescriptionHeadingBounds.y - propertyAddressHeadingBounds.y)
-    // };
-    // let addressElements = elements.filter(element => getPercentageOfElementInRectangle(element, addressBounds) > 10);
-    //
-    // let addressText = addressElements.map(element => element.text).join("").trim().replace(/\s\s+/g, " ");
-    // if (addressText === undefined || addressText.trim() === "")
-    // {
-    //     let elementSummary = elements.map(element => `[${element.text}]`).join("");
-    //     console.log(`Application number ${applicationNumber} will be ignored because there is no address.  Elements: ${elementSummary}`);
-    //     return undefined;
-    // }
 
-    // Group the address elements into rows.
-    //
-    // let addressRows: Element[][] = [];
-    // for (let addressElement of addressElements) {
-    //     let addressRow = addressRows.find(row => Math.abs(row[0].y - addressElement.y) < 2 * Tolerance);  // approximate Y co-ordinate match
-    //     if (addressRow === undefined)
-    //         addressRows.push([ addressElement ]);  // start a new row
-    //     else
-    //         addressRow.push(addressElement);  // add to an existing row
-    // }
-    //
-    // let addressLines = addressRows.map(addressRow => addressRow.map(element => element.text).join(" ").trim().replace(/\s\s+/g, " "));
-    // let address = addressLines.filter(line => line !== "").join(", ");  // ignore blank lines
+    if (developmentAddressHeadingCell === undefined) {
+        let elementSummary = elements.map(element => `[${element.text}]`).join("");
+        console.log(`Could not find the "DEVELOPMENT ADDRESS:" heading on the PDF page for the current development application.  The development application will be ignored.  Elements: ${elementSummary}`);
+        return undefined;
+    }
+
+    let addressCell = cells.find(cell => (developmentAddressHeadingCell.x + developmentAddressHeadingCell.width - cell.x) ** 2 + (developmentAddressHeadingCell.y - cell.y) ** 2 < Tolerance ** 2);
+    let address = addressCell.elements.map(element => element.text).join("").trim().replace(/\s\s+/g, " ");
+    if (address === "") {
+        let elementSummary = elements.map(element => `[${element.text}]`).join("");
+        console.log(`The address is blank on the PDF page for the current development application.  The development application will be ignored.  Elements: ${elementSummary}`);
+        return undefined;
+    }
 
     // Construct the resulting application information.
-    //    
-    // return {
-    //     applicationNumber: applicationNumber,
-    //     address: address,
-    //     description: ((description !== undefined && description.trim() !== "") ? description : "No Description Provided"),
-    //     informationUrl: informationUrl,
-    //     commentUrl: CommentUrl,
-    //     scrapeDate: moment().format("YYYY-MM-DD"),
-    //     receivedDate: (receivedDate !== undefined && receivedDate.isValid()) ? receivedDate.format("YYYY-MM-DD") : ""
-    // };
+       
+    return {
+        applicationNumber: applicationNumber,
+        address: address,
+        description: ((description !== undefined && description.trim() !== "") ? description : "NO DESCRIPTION PROVIDED"),
+        informationUrl: informationUrl,
+        commentUrl: CommentUrl,
+        scrapeDate: moment().format("YYYY-MM-DD"),
+        receivedDate: (receivedDate !== undefined && receivedDate.isValid()) ? receivedDate.format("YYYY-MM-DD") : ""
+    };
 }
 
 // Examines all the lines in a page of a PDF and constructs cells (ie. rectangles) based on those
@@ -551,54 +501,53 @@ async function parseCells(page) {
     // outside of the grid (such as a logo).  Otherwise these short lines would cause problems due
     // to the additional cells that they would cause to be constructed later.
 
-    let horizontalLines: Rectangle[] = [];
-    let verticalLines: Rectangle[] = [];
+    let horizontalLines: Line[] = [];
+    let verticalLines: Line[] = [];
 
     for (let line of lines) {
         if (line.height <= Tolerance && line.width >= 10)  // a horizontal line
-            horizontalLines.push(line);
+            horizontalLines.push({ x1: line.x, y1: line.y, x2: line.x + line.width, y2: line.y });
         else if (line.width <= Tolerance && line.height >= 10)  // a vertical line
-            verticalLines.push(line);
+            verticalLines.push({ x1: line.x, y1: line.y, x2: line.x, y2: line.y + line.height });
     }
 
-    let verticalLineComparer = (a, b) => (a.x > b.x) ? 1 : ((a.x < b.x) ? -1 : 0);
-    verticalLines.sort(verticalLineComparer);
-
-    let horizontalLineComparer = (a, b) => (a.y > b.y) ? 1 : ((a.y < b.y) ? -1 : 0);
+    let horizontalLineComparer = (a: Line, b: Line) => (a.y1 > b.y1) ? 1 : ((a.y1 < b.y1) ? -1 : 0);
     horizontalLines.sort(horizontalLineComparer);
     
-    // Add the start and end points of all lines.
+    let verticalLineComparer = (a: Line, b: Line) => (a.x1 > b.x1) ? 1 : ((a.x1 < b.x1) ? -1 : 0);
+    verticalLines.sort(verticalLineComparer);
+
+    // Find all horizontal lines that share a start or end point with a vertical line or that
+    // intersect with a vertical line.  This purposely ignores any lines that do not intersect
+    // with another line or share a start and end point (because these are often stand alone
+    // lines that appear outside of any grid, perhaps as an underline underneath text).
 
     let points: Point[] = [];
 
-    for (let line of horizontalLines) {
-        let point = { x: line.x, y: line.y };
-        if (!points.some(otherPoint => (point.x - otherPoint.x) ** 2 + (point.y - otherPoint.y) ** 2 < Tolerance ** 2))
-            points.push(point);
-        point = { x: line.x + line.width, y: line.y };
-        if (!points.some(otherPoint => (point.x - otherPoint.x) ** 2 + (point.y - otherPoint.y) ** 2 < Tolerance ** 2))
-            points.push(point);
-    }
+    for (let horizontalLine of horizontalLines) {
+        for (let verticalLine of verticalLines) {
+            let intersectionPoint = intersectLines(horizontalLine, verticalLine, true);  // do not extend lines to infinity (there are no gaps in the lines so this is not needed)
 
-    for (let line of verticalLines) {
-        let point = { x: line.x, y: line.y };
-        if (!points.some(otherPoint => (point.x - otherPoint.x) ** 2 + (point.y - otherPoint.y) ** 2 < Tolerance ** 2))
-            points.push(point);
-        point = { x: line.x, y: line.y + line.height };
-        if (!points.some(otherPoint => (point.x - otherPoint.x) ** 2 + (point.y - otherPoint.y) ** 2 < Tolerance ** 2))
-            points.push(point);
-    }
-        
-    // Find all intersection points.
+            let haveSharedPoints =
+                (verticalLine.x1 - horizontalLine.x1) ** 2 + (verticalLine.y1 - horizontalLine.y1) ** 2 < Tolerance ** 2 ||
+                (verticalLine.x1 - horizontalLine.x2) ** 2 + (verticalLine.y1 - horizontalLine.y2) ** 2 < Tolerance ** 2 ||
+                (verticalLine.x2 - horizontalLine.x1) ** 2 + (verticalLine.y2 - horizontalLine.y1) ** 2 < Tolerance ** 2 ||
+                (verticalLine.x2 - horizontalLine.x2) ** 2 + (verticalLine.y2 - horizontalLine.y2) ** 2 < Tolerance ** 2;
 
-    for (let verticalLine of verticalLines) {
-        for (let horizontalLine of horizontalLines) {
-            let point = intersectLines(
-                { x1: horizontalLine.x, y1: horizontalLine.y, x2: horizontalLine.x + horizontalLine.width, y2: horizontalLine.y },
-                { x1: verticalLine.x, y1: verticalLine.y, x2: verticalLine.x, y2: verticalLine.y + verticalLine.height },
-                true);  // do not extend lines to infinity (there are no gaps in the lines so this is not needed)
-            if (point !== undefined && !points.some(otherPoint => (point.x - otherPoint.x) ** 2 + (point.y - otherPoint.y) ** 2 < Tolerance ** 2))
-                points.push(point);  // add the intersection point
+            if (intersectionPoint !== undefined)
+                if (!points.some(point => (intersectionPoint.x - point.x) ** 2 + (intersectionPoint.y - point.y) ** 2 < Tolerance ** 2))
+                    points.push(intersectionPoint);
+
+            if (haveSharedPoints || intersectionPoint !== undefined) {
+                if (!points.some(point => (horizontalLine.x1 - point.x) ** 2 + (horizontalLine.y1 - point.y) ** 2 < Tolerance ** 2))
+                    points.push({ x: horizontalLine.x1, y: horizontalLine.y1 });
+                if (!points.some(point => (horizontalLine.x2 - point.x) ** 2 + (horizontalLine.y2 - point.y) ** 2 < Tolerance ** 2))
+                    points.push({ x: horizontalLine.x2, y: horizontalLine.y2 });
+                if (!points.some(point => (verticalLine.x1 - point.x) ** 2 + (verticalLine.y1 - point.y) ** 2 < Tolerance ** 2))
+                    points.push({ x: verticalLine.x1, y: verticalLine.y1 });
+                if (!points.some(point => (verticalLine.x2 - point.x) ** 2 + (verticalLine.y2 - point.y) ** 2 < Tolerance ** 2))
+                    points.push({ x: verticalLine.x2, y: verticalLine.y2 });
+            }
         }
     }
 
@@ -627,9 +576,6 @@ async function parseCells(page) {
 
     let cellComparer = (a, b) => (Math.abs(a.y - b.y) < Tolerance) ? ((a.x > b.x) ? 1 : ((a.x < b.x) ? -1 : 0)) : ((a.y > b.y) ? 1 : -1);
     cells.sort(cellComparer);
-
-for (let cell of cells)
-    console.log(`DrawRectangle(e.Graphics, ${cell.x}f, ${cell.y}f, ${cell.width}f, ${cell.height}f);`);
 
     return cells;
 }
@@ -742,7 +688,7 @@ async function parsePdf(url: string) {
                 ownerCell.elements.push(element);
         }
 
-        // Group the elements and the cells into sections based on where the "Application No" text
+        // Group the elements and the cells into sections based on where the "APPLICATION NO:" text
         // starts.
 
         let applicationElementGroups = [];
@@ -750,7 +696,7 @@ async function parsePdf(url: string) {
         for (let index = 0; index < startElements.length; index++) {
             // Determine the highest Y co-ordinate of this row and the next row (or the bottom of
             // the current page).  Allow some leeway vertically (add some extra height) because
-            // in some cases required elements might be higher up than the "Application No" text.
+            // in some cases required elements might be higher up than the start element.
             
             let startElement = startElements[index];
             let raisedStartElement: Element = {
@@ -867,7 +813,7 @@ async function main() {
     if (getRandom(0, 2) === 0)
         selectedPdfUrls.reverse();
 
-    for (let pdfUrl of ["https://www.peterborough.sa.gov.au/webdata/resources/files/DA%20REGISTER%202017.pdf"]) {
+    for (let pdfUrl of selectedPdfUrls) {
         console.log(`Parsing document: ${pdfUrl}`);
         let developmentApplications = await parsePdf(pdfUrl);
         console.log(`Parsed ${developmentApplications.length} development application(s) from document: ${pdfUrl}`);
