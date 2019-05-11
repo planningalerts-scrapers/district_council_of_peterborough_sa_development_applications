@@ -422,7 +422,7 @@ function parseApplicationElements(elements: Element[], cells: Cell[], informatio
 
     let addressCell = cells.find(cell => (developmentAddressHeadingCell.x + developmentAddressHeadingCell.width - cell.x) ** 2 + (developmentAddressHeadingCell.y - cell.y) ** 2 < Tolerance ** 2);
     let address = addressCell.elements.map(element => element.text).join("").trim().replace(/\s\s+/g, " ");
-    address = formatAddress(address);
+    address = formatAddress(applicationNumber, address);
     if (address === "") {
         let elementSummary = elements.map(element => `[${element.text}]`).join("");
         console.log(`The address is blank on the PDF page for the current development application.  The development application will be ignored.  Elements: ${elementSummary}`);
@@ -608,7 +608,7 @@ async function parseElements(page) {
 
 // Formats (and corrects) an address.
 
-function formatAddress(address: string) {
+function formatAddress(applicationNumber: string, address: string) {
     address = address.trim().replace(/[-–]+$/, "").trim();  // remove trailing dashes
     if (address.startsWith("LOT:") || address.startsWith("No Residential Address"))
         return "";
@@ -718,6 +718,13 @@ function formatAddress(address: string) {
 
     if (postCode !== undefined && suburbName !== undefined)
         suburbName = suburbName.replace(/\s+\d\d\d\d$/, " " + postCode);
+
+    // Do not allow an address that does not have a suburb name.
+
+    if (suburbName === undefined) {
+        console.log(`Ignoring the development application "${applicationNumber}" because a suburb name could not be determined for the address: ${address}`);
+        return "";
+    }
 
     // Reconstruct the address with a comma between the street address and the suburb.
 
