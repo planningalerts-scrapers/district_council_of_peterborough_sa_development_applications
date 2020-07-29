@@ -17,7 +17,7 @@ import didYouMean, * as didyoumean from "didyoumean2";
 
 sqlite3.verbose();
 
-const DevelopmentApplicationsUrl = "https://www.peterborough.sa.gov.au/Register";
+const DevelopmentApplicationsUrl = "https://www.peterborough.sa.gov.au/development/register";
 const CommentUrl = "mailto:council@peterborough.sa.gov.au";
 
 const Tolerance = 3;
